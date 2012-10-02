@@ -34,6 +34,9 @@ public class Client {
 	ObjectInputStream in = null;
 	private String hostPrefix;
 
+	boolean connected = false;
+	boolean subscribed = false;
+
 
 	public Client() {
 		display = new Display();
@@ -81,6 +84,7 @@ public class Client {
 		calculateHostPrefixString();
 		connectToServer();
 		addListeners();
+		handleSubscription();
 
 		//shell.pack();
 		shell.open ();
@@ -88,6 +92,47 @@ public class Client {
 			if (!display.readAndDispatch ()) display.sleep ();
 		}
 		display.dispose ();
+	}
+
+
+	private void handleSubscription() {
+		
+		Thread t = new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				
+				while (true){
+					createUpdateUIThread();
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+				
+			}
+		});
+		t.start();
+		
+	}
+
+
+	private void createUpdateUIThread() {
+
+		Display.getDefault().asyncExec( new Runnable() {
+
+			@Override
+			public void run() {
+				try {
+					if (subscribed)
+						updateBlackBoard();
+				}catch (Exception e) {
+					e.printStackTrace();
+				}
+
+			}
+		});
 	}
 
 
@@ -121,7 +166,6 @@ public class Client {
 			public void run() {
 
 				int i = 0;
-				boolean connected = false;
 				while (!connected){
 
 					createRandomSocketNumber();
@@ -158,13 +202,13 @@ public class Client {
 					}
 					i++;
 				}
-				
+
 				try{
 					clientSocket = new Socket("localhost", socketNum);
 					out = new ObjectOutputStream(clientSocket.getOutputStream());
 					//in = new ObjectInputStream(clientSocket.getInputStream());
 					blackboardText.setText(blackboardText.getText() + "Connected");
-					
+
 				}
 				catch (Exception e){
 					e.printStackTrace();
@@ -187,35 +231,40 @@ public class Client {
 				try {
 					String message = sendMessageText.getText();
 					if (!(message.equalsIgnoreCase("<update>") ||
-							message.equalsIgnoreCase("<bye>")))
+							message.equalsIgnoreCase("<bye>") || 
+							message.equalsIgnoreCase("<subscribe>") ||
+							message.equalsIgnoreCase("<unsubscribe>")))
 						message = hostPrefix + ": " + message;
-					
-					out.writeObject(message);
-					out.flush();
-					
+
 					if (message.equalsIgnoreCase("<update>")){
-						try {
-							if (in == null)
-								in = new ObjectInputStream(clientSocket.getInputStream());
-							String reply = (String)in.readObject();
-							blackboardText.setText(reply);
-						} catch (ClassNotFoundException e) {
-							e.printStackTrace();
-						}
-						
+						updateBlackBoard();
 					}
-					
+
+					else if (message.equalsIgnoreCase("<subscribe>"))
+						subscribed = true;
+
+					else if (message.equalsIgnoreCase("<unsubscribe>"))
+						subscribed = false;
+
 					else if (message.equalsIgnoreCase("<bye>")) {
+						subscribed = false;
+						out.writeObject(message);
+						out.flush();
 						sendButton.setEnabled(false);
 						sendMessageText.setEnabled(false);
 						blackboardText.setEnabled(false);
 					}
 					
+					else{
+						out.writeObject(message);
+						out.flush();
+					}
+
 					sendMessageText.setText("");
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
-				
+
 
 			}
 
@@ -225,6 +274,21 @@ public class Client {
 			}
 		});
 
+	}
+
+
+	private void updateBlackBoard() throws IOException {
+		try {
+			out.writeObject("<update>");
+			out.flush();
+
+			if (in == null)
+				in = new ObjectInputStream(clientSocket.getInputStream());
+			String reply = (String)in.readObject();
+			blackboardText.setText(reply);
+		} catch (ClassNotFoundException e) {
+			e.printStackTrace();
+		}
 	}
 
 

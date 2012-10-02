@@ -12,15 +12,15 @@ public class ServerConnection extends Thread {
 	ObjectInputStream in = null;
 	ObjectOutputStream out = null;
 	ServerSocket socket = null;
-	
-	
+
+
 	public ServerConnection(Integer socketNumber) {
 		this.socketNumber = socketNumber;
 	}
 
 	@Override
 	public void run() {
-		
+
 		try{
 			socket = new ServerSocket(socketNumber, 10);
 			System.out.println("connecting client on " + socketNumber);
@@ -32,12 +32,15 @@ public class ServerConnection extends Thread {
 			do{
 				try{
 					message = (String)in.readObject();
-					System.out.println("received: " + message);
 					if (message.equalsIgnoreCase("<update>")){
 						sendMessage(getServerDataAsString(Server.data));
 					}
+
 					else if (!message.equalsIgnoreCase("<bye>") && 
-								message != null){
+							!message.equalsIgnoreCase("<subscribe>") &&
+							!message.equalsIgnoreCase("<unsubscribe>") &&
+							message != null){
+						System.out.println("received: " + message);
 						Server.data.add(message);
 					}
 				}
@@ -62,17 +65,17 @@ public class ServerConnection extends Thread {
 	}
 
 	private String getServerDataAsString(ArrayList<String> data) {
-		
+
 		String returnValue = new String();
 		for (String s : data){
 			returnValue += (s + "\n");
 		}
-		
+
 		return returnValue;
 	}
 
 	private void sendMessage(String string) {
-		
+
 		try{
 			out.writeObject(string);
 			out.flush();
@@ -80,7 +83,7 @@ public class ServerConnection extends Thread {
 		catch(Exception ioException){
 			ioException.printStackTrace();
 		}
-		
+
 	}
 
 }
